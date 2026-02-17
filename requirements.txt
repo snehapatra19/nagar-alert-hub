@@ -1,4 +1,5 @@
 streamlit
+torch
+transformers
+huggingface_hub
 pandas
-scikit-learn
-numpy
