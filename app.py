@@ -4,7 +4,6 @@ import re
 import pandas as pd
 from datetime import datetime
 
-# Load model and vectorizer
 model = pickle.load(open("issue_model.pkl", "rb"))
 vectorizer = pickle.load(open("vectorizer.pkl", "rb"))
 
@@ -19,13 +18,10 @@ st.subheader("AI-Based Civic Issue Classification")
 user_input = st.text_area("Describe the civic issue:")
 
 if st.button("Analyze Issue"):
-
     if user_input.strip() == "":
         st.warning("Please enter an issue description")
-
     else:
         cleaned = clean_text(user_input)
-
         vec = vectorizer.transform([cleaned])
 
         prediction = model.predict(vec)[0]
@@ -34,7 +30,6 @@ if st.button("Analyze Issue"):
         st.success(f"Predicted Issue Category: {prediction.upper()}")
         st.info(f"Confidence: {confidence:.2f}%")
 
-        # Save complaint automatically
         log = pd.DataFrame({
             "timestamp":[datetime.now()],
             "issue_text":[user_input],
