@@ -1,45 +1,33 @@
 import streamlit as st
-import pickle
-import re
-import pandas as pd
-from datetime import datetime
+import torch
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-model = pickle.load(open("issue_model.pkl", "rb"))
-vectorizer = pickle.load(open("vectorizer.pkl", "rb"))
+# HuggingFace model name
+MODEL_NAME = "snehapatra1910/nagar-alert-model"
 
-def clean_text(text):
-    text = text.lower()
-    text = re.sub(r'[^a-z\s]', '', text)
-    return text
+# Load tokenizer and model
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
 
+# Labels
+labels = ["Power", "Road", "Garbage", "Water"]
+
+# Prediction function
+def predict_issue(text):
+    inputs = tokenizer(text, return_tensors="pt")
+    outputs = model(**inputs)
+    pred = torch.argmax(outputs.logits).item()
+    return labels[pred]
+
+# UI
 st.title("Nagar Alert Hub")
-st.subheader("AI-Based Civic Issue Classification")
+st.subheader("AI Based Civic Issue Classification")
 
-user_input = st.text_area("Describe the civic issue:")
+text = st.text_area("Describe the civic issue")
 
 if st.button("Analyze Issue"):
-    if user_input.strip() == "":
-        st.warning("Please enter an issue description")
+    if text:
+        category = predict_issue(text)
+        st.success(f"Predicted Issue Category: {category}")
     else:
-        cleaned = clean_text(user_input)
-        vec = vectorizer.transform([cleaned])
-
-        prediction = model.predict(vec)[0]
-        confidence = model.predict_proba(vec).max() * 100
-
-        st.success(f"Predicted Issue Category: {prediction.upper()}")
-        st.info(f"Confidence: {confidence:.2f}%")
-
-        log = pd.DataFrame({
-            "timestamp":[datetime.now()],
-            "issue_text":[user_input],
-            "predicted_category":[prediction],
-            "confidence":[confidence]
-        })
-
-        try:
-            existing = pd.read_csv("complaint_log.csv")
-            updated = pd.concat([existing, log], ignore_index=True)
-            updated.to_csv("complaint_log.csv", index=False)
-        except:
-            log.to_csv("complaint_log.csv", index=False)
+        st.warning("Please enter an issue description")
