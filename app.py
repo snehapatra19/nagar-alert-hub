@@ -1,33 +1,22 @@
 import streamlit as st
-import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import pickle
 
-# HuggingFace model name
-MODEL_NAME = "snehapatra1910/nagar-alert-model"
+# Load saved model and vectorizer
+model = pickle.load(open("issue_model.pkl", "rb"))
+vectorizer = pickle.load(open("vectorizer.pkl", "rb"))
 
-# Load tokenizer and model
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
+st.set_page_config(page_title="Nagar Alert Hub", layout="centered")
 
-# Labels
-labels = ["Power", "Road", "Garbage", "Water"]
-
-# Prediction function
-def predict_issue(text):
-    inputs = tokenizer(text, return_tensors="pt")
-    outputs = model(**inputs)
-    pred = torch.argmax(outputs.logits).item()
-    return labels[pred]
-
-# UI
 st.title("Nagar Alert Hub")
 st.subheader("AI Based Civic Issue Classification")
 
-text = st.text_area("Describe the civic issue")
+user_input = st.text_area("Describe the civic issue")
 
 if st.button("Analyze Issue"):
-    if text:
-        category = predict_issue(text)
-        st.success(f"Predicted Issue Category: {category}")
+    if user_input.strip() == "":
+        st.warning("Please enter a description.")
     else:
-        st.warning("Please enter an issue description")
+        input_vec = vectorizer.transform([user_input])
+        prediction = model.predict(input_vec)[0]
+
+        st.success(f"Predicted Category: {prediction}")
