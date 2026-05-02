@@ -118,11 +118,18 @@ def classify_incident(text: str):
         source = 'keyword_override'
     elif pipeline is not None:
         clean = preprocess_text(text)
-        proba = pipeline.predict_proba([clean])[0]
-        classes = pipeline.classes_
-        idx = np.argmax(proba)
-        label = classes[idx]
-        confidence = float(proba[idx])
+        try:
+            # LogisticRegression / NaiveBayes support predict_proba
+            proba = pipeline.predict_proba([clean])[0]
+            classes = pipeline.classes_
+            idx = np.argmax(proba)
+            label = classes[idx]
+            confidence = float(proba[idx])
+        except AttributeError:
+            # LinearSVC does not support predict_proba
+            label = pipeline.predict([clean])[0]
+            decision = pipeline.decision_function([clean])[0]
+            confidence = float(1 / (1 + np.exp(-abs(decision))))
         kw = None
         source = 'ml_model'
     else:
@@ -174,7 +181,6 @@ def report_page():
                            google_maps_key=os.getenv('GOOGLE_MAPS_API_KEY', ''))
 
 
-# ── Static files explicit route (fixes Render CSS issue) ─────────────
 @app.route('/static/<path:filename>')
 def static_files(filename):
     return send_from_directory(app.static_folder, filename)
