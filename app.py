@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ── App Setup ────────────────────────────────────────────────────────
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', static_url_path='/static')
 CORS(app)
 
 BASE_DIR = Path(__file__).parent
@@ -33,7 +33,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
     f"sqlite:///{BASE_DIR / 'instance' / 'incidents.db'}"
 )
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 db = SQLAlchemy(app)
 
@@ -64,7 +64,6 @@ def load_model():
 
 load_model()
 
-# ── Lazy import NLP utils ────────────────────────────────────────────
 import sys
 sys.path.insert(0, str(BASE_DIR))
 from utils.nlp_utils import (
@@ -85,7 +84,7 @@ class Incident(db.Model):
     confidence = db.Column(db.Float)
     keyword_triggered = db.Column(db.String(100))
     reporter_name = db.Column(db.String(100), default='Anonymous')
-    status = db.Column(db.String(20), default='open')  # open, reviewing, resolved
+    status = db.Column(db.String(20), default='open')
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     image_path = db.Column(db.String(300))
 
@@ -111,7 +110,6 @@ with app.app_context():
 
 # ── Prediction Core ──────────────────────────────────────────────────
 def classify_incident(text: str):
-    """Full classification pipeline with keyword override."""
     override = keyword_override(text)
 
     if override:
@@ -128,7 +126,6 @@ def classify_incident(text: str):
         kw = None
         source = 'ml_model'
     else:
-        # Fallback: basic keyword scan
         label = 'low_risk'
         confidence = 0.6
         kw = None
@@ -173,8 +170,14 @@ def dashboard():
 
 @app.route('/report')
 def report_page():
-    return render_template('report.html',
+    return render_template('index.html',
                            google_maps_key=os.getenv('GOOGLE_MAPS_API_KEY', ''))
+
+
+# ── Static files explicit route (fixes Render CSS issue) ─────────────
+@app.route('/static/<path:filename>')
+def static_files(filename):
+    return send_from_directory(app.static_folder, filename)
 
 
 # ── API Endpoints ─────────────────────────────────────────────────────
@@ -189,7 +192,6 @@ def predict():
 
         result = classify_incident(text)
 
-        # Persist to DB
         incident = Incident(
             description=text,
             location_name=data.get('location_name'),
@@ -258,7 +260,6 @@ def get_stats():
     open_count = Incident.query.filter_by(status='open').count()
     resolved = Incident.query.filter_by(status='resolved').count()
 
-    # Last 7 days trend
     from sqlalchemy import func
     trend = db.session.query(
         func.date(Incident.created_at).label('date'),
