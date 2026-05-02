@@ -1,0 +1,14 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+instance/
+.env
+*.pkl
+*.db
+mlflow_runs/
+.DS_Store
+*.egg-info/
+dist/
+build/
+models/model_meta.json

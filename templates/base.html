@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Nagar Alert Hub{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <a href="/" class="nav-logo">
+    <span class="logo-icon">🛡️</span>
+    <span class="logo-text">Nagar<strong>Alert</strong></span>
+  </a>
+  <div class="nav-links">
+    <a href="/" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">Report</a>
+    <a href="/dashboard" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">Dashboard</a>
+    <a href="/api/stats" class="nav-link" target="_blank">API</a>
+  </div>
+  <div class="nav-badge">
+    <span class="pulse-dot"></span> Live
+  </div>
+</nav>
+
+{% block content %}{% endblock %}
+
+<footer class="footer">
+  <div class="footer-inner">
+    <span>🛡️ Nagar Alert Hub v1.0</span>
+    <span>Smart City Public Safety · ML-Powered · Real-Time</span>
+    <span>Emergency: <strong>100</strong> · Ambulance: <strong>108</strong></span>
+  </div>
+</footer>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

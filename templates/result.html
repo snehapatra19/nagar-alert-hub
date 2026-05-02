@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}Incident #{{ incident.id }} Result — Nagar Alert Hub{% endblock %}
+
+{% block content %}
+<div class="result-wrapper">
+
+  <!-- Back -->
+  <a href="/" class="btn btn-outline" style="margin-bottom:1.5rem;display:inline-flex;">
+    ← Report Another
+  </a>
+
+  <!-- Risk Badge -->
+  <div class="result-hero">
+    {% if result.label == 'high_risk' %}
+    <div class="risk-badge high">🚨 HIGH RISK INCIDENT</div>
+    {% else %}
+    <div class="risk-badge low">✅ LOW RISK INCIDENT</div>
+    {% endif %}
+
+    <div style="font-family:'Syne',sans-serif;font-size:0.85rem;color:var(--muted);margin:0.75rem 0 0.5rem;text-transform:uppercase;letter-spacing:0.08em;">
+      Incident #{{ incident.id }} &nbsp;·&nbsp; {{ incident.created_at.strftime('%d %b %Y, %H:%M') }} UTC
+    </div>
+
+    <!-- Confidence Bar -->
+    <div style="max-width:400px;margin:1rem auto 0;">
+      <div style="display:flex;justify-content:space-between;font-size:0.8rem;color:var(--muted);margin-bottom:0.4rem;">
+        <span>Confidence Score</span>
+        <span style="color:var(--white);font-weight:700;">{{ "%.1f"|format(result.confidence * 100) }}%</span>
+      </div>
+      <div class="confidence-bar-wrap">
+        <div class="confidence-bar {{ 'high' if result.label == 'high_risk' else 'low' }}"
+             style="width: {{ "%.0f"|format(result.confidence * 100) }}%"></div>
+      </div>
+    </div>
+
+    {% if result.keyword %}
+    <div style="margin-top:1rem;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:0.6rem 1rem;font-size:0.85rem;color:#fca5a5;display:inline-block;">
+      ⚡ Keyword override triggered: <strong>"{{ result.keyword }}"</strong>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Description Box -->
+  <div class="card" style="margin-bottom:1rem;">
+    <div class="card-header">
+      <div class="card-icon">📝</div>
+      <h2>Incident Description</h2>
+    </div>
+    <p style="color:#94a3b8;line-height:1.7;font-size:0.95rem;">{{ incident.description }}</p>
+
+    {% if incident.location_name %}
+    <div style="margin-top:0.75rem;color:var(--muted);font-size:0.85rem;">
+      📍 {{ incident.location_name }}
+      {% if incident.latitude %}
+        · {{ "%.4f"|format(incident.latitude) }}, {{ "%.4f"|format(incident.longitude) }}
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div style="margin-top:0.5rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
+      <span class="badge {% if result.label == 'high_risk' %}badge-high{% else %}badge-low{% endif %}">
+        {{ result.label.replace('_', ' ') }}
+      </span>
+      <span class="badge badge-open">{{ incident.status }}</span>
+      <span style="font-size:0.78rem;color:var(--muted);align-self:center;">
+        Reported by {{ incident.reporter_name }}
+      </span>
+    </div>
+  </div>
+
+  <!-- Result Grid -->
+  <div class="result-grid">
+
+    <!-- Recommended Actions -->
+    <div class="result-card">
+      <h3>🎯 Recommended Actions</h3>
+      <ul class="action-list">
+        {% for action in result.actions %}
+        <li>{{ action }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <!-- Authorities -->
+    <div class="result-card">
+      <h3>📞 Contact Authorities</h3>
+      <div class="authority-list">
+        {% for auth in result.authorities %}
+        <div class="authority-item">
+          <span>{{ auth.icon }} {{ auth.name }}</span>
+          <a href="tel:{{ auth.number }}" class="authority-number">{{ auth.number }}</a>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Explanation -->
+    <div class="result-card" style="grid-column: 1 / -1;">
+      <h3>🧠 AI Explanation</h3>
+      <div class="explanation-box">{{ result.explanation }}</div>
+      <div style="margin-top:1rem;display:flex;gap:0.5rem;flex-wrap:wrap;font-size:0.8rem;color:var(--muted);">
+        <span>Model: <strong style="color:var(--amber);">{{ result.source.replace('_', ' ').title() }}</strong></span>
+        <span>·</span>
+        <span>Classification Engine: <strong style="color:var(--white);">Logistic Regression + TF-IDF</strong></span>
+      </div>
+    </div>
+
+    <!-- Map (if location) -->
+    {% if incident.latitude %}
+    <div class="result-card" style="grid-column: 1 / -1; padding: 0; overflow:hidden;">
+      <div style="padding:1.25rem 1.5rem 1rem;">
+        <h3>🗺️ Incident Location</h3>
+      </div>
+      <div id="result-map" style="height:300px;"></div>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- Actions Row -->
+  <div style="display:flex;gap:1rem;margin-top:1.5rem;flex-wrap:wrap;">
+    <a href="/" class="btn btn-primary" style="flex:1;max-width:240px;">+ New Report</a>
+    <a href="/dashboard" class="btn btn-outline">📊 Dashboard</a>
+    <button class="btn btn-outline" onclick="shareReport()">🔗 Share</button>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% if google_maps_key %}
+<script>
+function initResultGoogleMap() {
+  const pos = { lat: {{ incident.latitude }}, lng: {{ incident.longitude }} };
+  const gmap = new google.maps.Map(document.getElementById('result-map'), {
+    center: pos, zoom: 15,
+    styles: [
+      { elementType: 'geometry', stylers: [{ color: '#0b1629' }] },
+      { elementType: 'labels.text.fill', stylers: [{ color: '#64748b' }] },
+      { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#162847' }] },
+      { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#060d1a' }] },
+    ]
+  });
+  const color = '{{ "ef4444" if result.label == "high_risk" else "10b981" }}';
+  new google.maps.Marker({
+    position: pos, map: gmap,
+    icon: { path: google.maps.SymbolPath.CIRCLE, scale: 12,
+            fillColor: '#' + color, fillOpacity: 1,
+            strokeColor: '#fff', strokeWeight: 2 },
+    title: '{{ incident.description[:50] }}'
+  });
+}
+</script>
+<script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_key }}&callback=initResultGoogleMap" async defer></script>
+{% elif incident.latitude %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const lat = {{ incident.latitude }}, lng = {{ incident.longitude }};
+  const map = L.map('result-map').setView([lat, lng], 15);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+  const color = '{{ "#ef4444" if result.label == "high_risk" else "#10b981" }}';
+  L.circleMarker([lat, lng], {
+    radius: 14, fillColor: color, color: '#fff', weight: 2, fillOpacity: 0.9
+  }).addTo(map).bindPopup(`<b>Incident #{{ incident.id }}</b><br>{{ incident.description[:80] }}`).openPopup();
+});
+</script>
+{% endif %}
+<script>
+function shareReport() {
+  if (navigator.share) {
+    navigator.share({
+      title: 'Nagar Alert Hub — Incident #{{ incident.id }}',
+      text: '{{ result.label.replace("_"," ").upper() }}: {{ incident.description[:100] }}',
+      url: window.location.href
+    });
+  } else {
+    navigator.clipboard.writeText(window.location.href);
+    showToast('Link copied to clipboard!', 'success');
+  }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: nagar-alert-hub
+    runtime: python
+    buildCommand: |
+      pip install -r requirements.txt
+      python -c "import nltk; nltk.download('punkt', quiet=True); nltk.download('stopwords', quiet=True)"
+      cd models && python train_model.py
+    startCommand: gunicorn app:app --workers=2 --timeout=120 --bind=0.0.0.0:$PORT
+    plan: free
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+    disk:
+      name: nagar-data
+      mountPath: /opt/render/project/src/instance
+      sizeGB: 1

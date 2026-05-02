@@ -1,0 +1,308 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Nagar Alert Hub{% endblock %}
+
+{% block content %}
+<div style="max-width:1400px;margin:0 auto;padding:2rem 1.5rem 1rem;">
+
+  <!-- Header Row -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
+    <div>
+      <h1 style="font-family:'Syne',sans-serif;font-size:1.8rem;font-weight:800;letter-spacing:-0.02em;">
+        Command Dashboard
+      </h1>
+      <p style="color:var(--muted);font-size:0.9rem;margin-top:0.2rem;">
+        Live incident monitoring · Auto-refreshes every 30s
+      </p>
+    </div>
+    <div style="display:flex;gap:0.75rem;">
+      <a href="/" class="btn btn-primary" style="padding:0.7rem 1.4rem;font-size:0.9rem;">
+        + New Report
+      </a>
+      <button class="btn btn-outline" onclick="refreshDashboard()">⟳ Refresh</button>
+    </div>
+  </div>
+
+  <!-- Stats Row -->
+  <div class="stats-row" id="stats-row">
+    <div class="stat-card">
+      <div class="stat-number" id="stat-total">{{ stats.total }}</div>
+      <div class="stat-label">Total Reports</div>
+    </div>
+    <div class="stat-card danger">
+      <div class="stat-number" id="stat-high">{{ stats.high_risk }}</div>
+      <div class="stat-label">High Risk</div>
+    </div>
+    <div class="stat-card safe">
+      <div class="stat-number" id="stat-low">{{ stats.low_risk }}</div>
+      <div class="stat-label">Low Risk</div>
+    </div>
+    <div class="stat-card amber">
+      <div class="stat-number" id="stat-open">{{ stats.open }}</div>
+      <div class="stat-label">Open</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number" id="stat-resolved">{{ stats.resolved }}</div>
+      <div class="stat-label">Resolved</div>
+    </div>
+  </div>
+</div>
+
+<!-- Main Layout -->
+<div class="dashboard-layout" style="padding-top:0;">
+
+  <!-- Left Column -->
+  <div>
+
+    <!-- Incidents Panel -->
+    <div class="incidents-panel" style="margin-bottom:1.5rem;">
+      <div class="panel-header">
+        <h2>Live Incidents</h2>
+        <div class="filter-tabs">
+          <button class="filter-tab active" onclick="filterIncidents('all', this)">All</button>
+          <button class="filter-tab" onclick="filterIncidents('high_risk', this)">🔴 High</button>
+          <button class="filter-tab" onclick="filterIncidents('low_risk', this)">🟢 Low</button>
+          <button class="filter-tab" onclick="filterIncidents('open', this)">Open</button>
+        </div>
+      </div>
+
+      <div class="incident-list" id="incident-list">
+        {% if incidents %}
+          {% for inc in incidents %}
+          <div class="incident-item" onclick="viewIncident({{ inc.id }})"
+               data-label="{{ inc.risk_label }}" data-status="{{ inc.status }}">
+            <div class="incident-risk-dot {{ 'high' if inc.risk_label == 'high_risk' else 'low' }}"></div>
+            <div class="incident-body">
+              <div class="incident-desc">{{ inc.description }}</div>
+              <div class="incident-meta">
+                <span>📍 {{ inc.location_name or 'Unknown' }}</span>
+                <span>👤 {{ inc.reporter_name }}</span>
+                <span>🕐 {{ inc.created_at.strftime('%d %b, %H:%M') }}</span>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:0.3rem;align-items:flex-end;flex-shrink:0;">
+              <span class="badge badge-{{ 'high' if inc.risk_label == 'high_risk' else 'low' }}">
+                {{ inc.risk_label.replace('_',' ') }}
+              </span>
+              <span class="badge badge-{{ inc.status }}">{{ inc.status }}</span>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div style="padding:3rem;text-align:center;color:var(--muted);">
+            <div style="font-size:2.5rem;margin-bottom:0.75rem;">📭</div>
+            No incidents reported yet.<br>
+            <a href="/" style="color:var(--amber);">Submit the first report</a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Risk Chart -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon">📊</div>
+        <h2>Risk Distribution</h2>
+      </div>
+      <canvas id="riskChart" height="160"></canvas>
+    </div>
+  </div>
+
+  <!-- Right Column — Map -->
+  <div>
+    <div class="map-panel">
+      <div class="panel-header">
+        <h2>🗺️ Live Incident Map</h2>
+        <div class="nav-badge">
+          <span class="pulse-dot"></span> Live
+        </div>
+      </div>
+      <div id="dashboard-map" style="height:500px;"></div>
+
+      <!-- Map Legend -->
+      <div style="padding:1rem 1.5rem;border-top:1px solid var(--border);display:flex;gap:1.5rem;font-size:0.82rem;">
+        <span style="display:flex;align-items:center;gap:0.4rem;">
+          <span style="width:10px;height:10px;background:#ef4444;border-radius:50%;display:inline-block;"></span>
+          High Risk
+        </span>
+        <span style="display:flex;align-items:center;gap:0.4rem;">
+          <span style="width:10px;height:10px;background:#10b981;border-radius:50%;display:inline-block;"></span>
+          Low Risk
+        </span>
+      </div>
+    </div>
+
+    <!-- Model Info Card -->
+    <div class="card" style="margin-top:1.5rem;">
+      <div class="card-header">
+        <div class="card-icon">🤖</div>
+        <h2>ML Model Info</h2>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;font-size:0.88rem;">
+        <div>
+          <div style="color:var(--muted);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.2rem;">Model</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:700;color:var(--amber);" id="model-name">Logistic Regression</div>
+        </div>
+        <div>
+          <div style="color:var(--muted);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.2rem;">Accuracy</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:700;color:var(--green);" id="model-acc">~88%</div>
+        </div>
+        <div>
+          <div style="color:var(--muted);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.2rem;">Version</div>
+          <div id="model-ver">1.0.0</div>
+        </div>
+        <div>
+          <div style="color:var(--muted);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.2rem;">Vectorizer</div>
+          <div>TF-IDF (5k)</div>
+        </div>
+      </div>
+      <div style="margin-top:1rem;font-size:0.8rem;color:var(--muted);">
+        ⚡ Keyword override active for 30 critical terms
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% if google_maps_key %}
+<script>
+let gmap;
+let gmarkers = [];
+
+function initDashboardGoogleMap() {
+  gmap = new google.maps.Map(document.getElementById('dashboard-map'), {
+    center: { lat: 20.5937, lng: 78.9629 }, zoom: 5,
+    styles: [
+      { elementType: 'geometry', stylers: [{ color: '#0b1629' }] },
+      { elementType: 'labels.text.fill', stylers: [{ color: '#64748b' }] },
+      { elementType: 'labels.text.stroke', stylers: [{ color: '#060d1a' }] },
+      { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#162847' }] },
+      { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#060d1a' }] },
+      { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#1e3560' }] },
+    ]
+  });
+  loadMapMarkers();
+}
+
+function loadMapMarkers() {
+  fetch('/api/incidents?limit=200').then(r => r.json()).then(data => {
+    gmarkers.forEach(m => m.setMap(null));
+    gmarkers = [];
+    data.filter(i => i.latitude).forEach(inc => {
+      const color = inc.risk_label === 'high_risk' ? '#ef4444' : '#10b981';
+      const m = new google.maps.Marker({
+        position: { lat: inc.latitude, lng: inc.longitude },
+        map: gmap,
+        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10,
+                fillColor: color, fillOpacity: 0.85,
+                strokeColor: '#fff', strokeWeight: 1.5 },
+        title: inc.description.substring(0, 60)
+      });
+      const iw = new google.maps.InfoWindow({
+        content: `<div style="background:#0b1629;color:#f0f4ff;padding:0.75rem;border-radius:8px;font-family:'DM Sans',sans-serif;max-width:220px;">
+          <div style="font-weight:700;font-size:0.85rem;color:${color};margin-bottom:0.3rem;">${inc.risk_label.replace('_',' ').toUpperCase()}</div>
+          <div style="font-size:0.8rem;color:#94a3b8;">${inc.description.substring(0,100)}...</div>
+          <a href="/result/${inc.id}" style="color:#f59e0b;font-size:0.78rem;">View Details →</a>
+        </div>`
+      });
+      m.addListener('click', () => iw.open(gmap, m));
+      gmarkers.push(m);
+    });
+  });
+}
+</script>
+<script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_key }}&callback=initDashboardGoogleMap" async defer></script>
+{% else %}
+<script>
+let dashMap;
+function initDashboardLeaflet() {
+  dashMap = L.map('dashboard-map').setView([20.5937, 78.9629], 5);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(dashMap);
+  loadMapMarkers();
+}
+
+function loadMapMarkers() {
+  fetch('/api/incidents?limit=200').then(r => r.json()).then(data => {
+    data.filter(i => i.latitude).forEach(inc => {
+      const color = inc.risk_label === 'high_risk' ? '#ef4444' : '#10b981';
+      const icon = L.divIcon({
+        html: `<div style="width:14px;height:14px;background:${color};border-radius:50%;border:2px solid #fff;box-shadow:0 0 10px ${color}66"></div>`,
+        iconSize: [14,14], iconAnchor: [7,7], className: ''
+      });
+      L.marker([inc.latitude, inc.longitude], { icon }).addTo(dashMap)
+        .bindPopup(`<b style="color:${color}">${inc.risk_label.replace('_',' ').toUpperCase()}</b><br>
+          <small>${inc.description.substring(0,100)}...</small><br>
+          <a href="/result/${inc.id}" style="color:#f59e0b">View →</a>`);
+    });
+  });
+}
+document.addEventListener('DOMContentLoaded', initDashboardLeaflet);
+</script>
+{% endif %}
+
+<script>
+// ── Chart.js Risk Distribution ────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const ctx = document.getElementById('riskChart').getContext('2d');
+  const highCount = {{ stats.high_risk }};
+  const lowCount = {{ stats.low_risk }};
+
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['High Risk', 'Low Risk'],
+      datasets: [{
+        data: [highCount || 1, lowCount || 1],
+        backgroundColor: ['rgba(239,68,68,0.8)', 'rgba(16,185,129,0.8)'],
+        borderColor: ['#ef4444', '#10b981'],
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          labels: { color: '#f0f4ff', font: { family: 'DM Sans' } }
+        }
+      },
+      cutout: '65%',
+    }
+  });
+
+  // Load model info
+  fetch('/api/model-info').then(r => r.json()).then(data => {
+    if (data.model_name) {
+      document.getElementById('model-name').textContent = data.model_name;
+      document.getElementById('model-acc').textContent = (data.accuracy * 100).toFixed(1) + '%';
+      document.getElementById('model-ver').textContent = data.version;
+    }
+  }).catch(() => {});
+});
+
+// ── Filter ─────────────────────────────────────────────────────────────
+function filterIncidents(type, btn) {
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.incident-item').forEach(item => {
+    const show = type === 'all'
+      || item.dataset.label === type
+      || item.dataset.status === type;
+    item.style.display = show ? '' : 'none';
+  });
+}
+
+function viewIncident(id) {
+  window.location.href = `/result/${id}`;
+}
+
+function refreshDashboard() {
+  window.location.reload();
+}
+
+// Auto-refresh every 30s
+setTimeout(() => window.location.reload(), 30000);
+</script>
+{% endblock %}

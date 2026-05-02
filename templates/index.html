@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+{% block title %}Report Incident — Nagar Alert Hub{% endblock %}
+
+{% block content %}
+
+<!-- Alert Ticker -->
+<div class="alert-ticker">
+  <span class="ticker-inner" id="ticker">
+    🚨 EMERGENCY NUMBERS: Police 100 &nbsp;|&nbsp; Fire 101 &nbsp;|&nbsp; Ambulance 108 &nbsp;|&nbsp; Disaster 1077 &nbsp;|&nbsp; Women Helpline 1091 &nbsp;|&nbsp; Child Helpline 1098 &nbsp;|&nbsp; Senior Citizen 14567 &nbsp;|&nbsp; Nagar Alert Hub — Smart City Public Safety Monitoring &nbsp;|&nbsp; Report Incidents in Real-Time &nbsp;|&nbsp; Smart City Safety Network Active 🛡️
+  </span>
+</div>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-eyebrow">
+    <span>🛡️</span> Smart City Public Safety Network
+  </div>
+  <h1>Report a Public <em>Safety</em> Incident</h1>
+  <p>Our system classifies incidents in real-time using NLP and ML, enabling faster response from authorities.</p>
+</section>
+
+<!-- Report Form -->
+<div class="report-container">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon">📋</div>
+      <h2>Incident Report Form</h2>
+    </div>
+
+    <div class="form-group">
+      <label>Incident Description <span>*</span></label>
+      <textarea id="description" class="form-control"
+        placeholder="Describe what happened in detail — location, time, people involved, type of incident..."></textarea>
+      <div style="font-size:0.78rem;color:var(--muted);margin-top:0.3rem;" id="char-count">0 / 1000 characters</div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Your Name</label>
+        <input type="text" id="reporter-name" class="form-control" placeholder="Anonymous" />
+      </div>
+      <div class="form-group">
+        <label>Location Name</label>
+        <input type="text" id="location-name" class="form-control" placeholder="e.g. MG Road, Bengaluru" />
+      </div>
+    </div>
+
+    <!-- Map Pick -->
+    <div class="form-group">
+      <label>Pin Location on Map <small style="color:var(--muted)">(click map or use GPS)</small></label>
+      <div class="map-container">
+        <div id="report-map"></div>
+      </div>
+      <div style="display:flex;gap:0.5rem;margin-top:0.5rem;align-items:center;">
+        <button class="btn btn-outline" onclick="locateMe()" id="gps-btn">📍 Use My Location</button>
+        <span class="map-hint" id="coords-hint">No location selected</span>
+      </div>
+    </div>
+
+    <input type="hidden" id="lat" value="" />
+    <input type="hidden" id="lng" value="" />
+
+    <button class="btn btn-primary" id="submit-btn" onclick="submitReport()">
+      <div class="spinner"></div>
+      <span class="btn-text">🚨 Submit & Classify Incident</span>
+    </button>
+  </div>
+
+  <!-- Info Cards -->
+  <div class="form-row" style="margin-top:1.5rem;">
+    <div class="card" style="padding:1.25rem;">
+      <div style="font-size:1.5rem;margin-bottom:0.5rem;">⚡</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:700;margin-bottom:0.3rem;">Instant Classification</div>
+      <div style="font-size:0.85rem;color:var(--muted);">ML model classifies your report in under 200ms with 85-90% accuracy.</div>
+    </div>
+    <div class="card" style="padding:1.25rem;">
+      <div style="font-size:1.5rem;margin-bottom:0.5rem;">🔒</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:700;margin-bottom:0.3rem;">Keyword Override</div>
+      <div style="font-size:0.85rem;color:var(--muted);">Critical terms like "bomb" or "murder" trigger instant HIGH RISK flags regardless of model output.</div>
+    </div>
+    <div class="card" style="padding:1.25rem;">
+      <div style="font-size:1.5rem;margin-bottom:0.5rem;">🗺️</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:700;margin-bottom:0.3rem;">Live Map Tracking</div>
+      <div style="font-size:0.85rem;color:var(--muted);">All incidents plotted in real-time on dashboard map for responders.</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if not google_maps_key %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% endif %}
+
+<script>
+let selectedLat = null, selectedLng = null;
+let leafletMap = null, leafletMarker = null;
+let gmap = null, gMarker = null;
+
+document.getElementById('description').addEventListener('input', function() {
+  document.getElementById('char-count').textContent = this.value.length + ' / 1000 characters';
+});
+
+{% if google_maps_key %}
+function initGoogleMap() {
+  gmap = new google.maps.Map(document.getElementById('report-map'), {
+    center: { lat: 12.9716, lng: 77.5946 },
+    zoom: 12,
+    styles: [
+      { elementType: 'geometry', stylers: [{ color: '#0b1629' }] },
+      { elementType: 'labels.text.fill', stylers: [{ color: '#64748b' }] },
+      { elementType: 'labels.text.stroke', stylers: [{ color: '#060d1a' }] },
+      { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#162847' }] },
+      { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#060d1a' }] },
+    ]
+  });
+  gmap.addListener('click', function(e) {
+    placeGoogleMarker(e.latLng.lat(), e.latLng.lng());
+  });
+}
+
+function placeGoogleMarker(lat, lng) {
+  if (gMarker) gMarker.setMap(null);
+  gMarker = new google.maps.Marker({
+    position: { lat: lat, lng: lng },
+    map: gmap,
+    icon: {
+      path: google.maps.SymbolPath.CIRCLE,
+      scale: 10,
+      fillColor: '#f59e0b',
+      fillOpacity: 1,
+      strokeColor: '#ffffff',
+      strokeWeight: 2
+    }
+  });
+  setLatLng(lat, lng);
+}
+
+async function locateMe() {
+  const btn = document.getElementById('gps-btn');
+  btn.textContent = '⏳ Locating...';
+  btn.disabled = true;
+  try {
+    const pos = await getUserLocation();
+    placeGoogleMarker(pos.lat, pos.lng);
+    gmap.setCenter({ lat: pos.lat, lng: pos.lng });
+    gmap.setZoom(15);
+    showToast('Location detected!', 'success');
+  } catch (e) {
+    showToast('Could not get location. Please allow location access.', 'error');
+  } finally {
+    btn.textContent = '📍 Use My Location';
+    btn.disabled = false;
+  }
+}
+
+{% else %}
+document.addEventListener('DOMContentLoaded', function() {
+  leafletMap = L.map('report-map').setView([12.9716, 77.5946], 12);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© CartoDB', maxZoom: 19
+  }).addTo(leafletMap);
+  leafletMap.on('click', function(e) {
+    placeLeafletMarker(e.latlng.lat, e.latlng.lng);
+  });
+});
+
+function placeLeafletMarker(lat, lng) {
+  if (leafletMarker) leafletMap.removeLayer(leafletMarker);
+  const icon = L.divIcon({
+    html: '<div style="width:16px;height:16px;background:#f59e0b;border-radius:50%;border:2px solid #fff;box-shadow:0 0 12px rgba(245,158,11,0.6)"></div>',
+    iconSize: [16, 16], iconAnchor: [8, 8], className: ''
+  });
+  leafletMarker = L.marker([lat, lng], { icon }).addTo(leafletMap);
+  setLatLng(lat, lng);
+}
+
+async function locateMe() {
+  const btn = document.getElementById('gps-btn');
+  btn.textContent = '⏳ Locating...';
+  btn.disabled = true;
+  try {
+    const pos = await getUserLocation();
+    placeLeafletMarker(pos.lat, pos.lng);
+    leafletMap.setView([pos.lat, pos.lng], 15);
+    showToast('Location detected!', 'success');
+  } catch (e) {
+    showToast('Could not get location. Please allow location access.', 'error');
+  } finally {
+    btn.textContent = '📍 Use My Location';
+    btn.disabled = false;
+  }
+}
+{% endif %}
+
+function setLatLng(lat, lng) {
+  selectedLat = lat;
+  selectedLng = lng;
+  document.getElementById('lat').value = lat;
+  document.getElementById('lng').value = lng;
+  document.getElementById('coords-hint').textContent = '📍 ' + lat.toFixed(5) + ', ' + lng.toFixed(5);
+}
+
+async function submitReport() {
+  const description = document.getElementById('description').value.trim();
+  if (!description || description.length < 10) {
+    showToast('Please enter a meaningful description (min 10 chars)', 'warning');
+    return;
+  }
+  const btn = document.getElementById('submit-btn');
+  btn.classList.add('loading');
+  btn.disabled = true;
+  const payload = {
+    text: description,
+    reporter_name: document.getElementById('reporter-name').value || 'Anonymous',
+    location_name: document.getElementById('location-name').value,
+    latitude: selectedLat,
+    longitude: selectedLng,
+  };
+  try {
+    const res = await fetch('/api/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Prediction failed');
+    showToast('Incident #' + data.incident_id + ' classified!', 'success');
+    setTimeout(function() {
+      window.location.href = '/result/' + data.incident_id;
+    }, 600);
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
+}
+</script>
+
+{% if google_maps_key %}
+<script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_key }}&callback=initGoogleMap" async defer></script>
+{% endif %}
+{% endblock %}
